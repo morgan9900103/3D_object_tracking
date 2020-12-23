@@ -190,18 +190,27 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
             inliersCurr.push_back(*it);
     }
 
-    // Find the min value for inliers
-    double minXPrev = 1e8, minXCurr = 1e8;
-    for (auto it = inliersPrev.begin(); it != inliersPrev.end(); it++)
-        minXPrev = minXPrev < it->x ? minXPrev : it->x;
+    if (inliersCurr.size() && inliersPrev.size())
+    {
+        // Find the min value for inliers
+        double minXPrev = 1e8, minXCurr = 1e8;
+        for (auto it = inliersPrev.begin(); it != inliersPrev.end(); it++)
+            minXPrev = minXPrev < it->x ? minXPrev : it->x;
 
-    for (auto it = inliersCurr.begin(); it != inliersCurr.end(); it++)
-        minXCurr = minXCurr < it->x ? minXCurr : it->x;
+        for (auto it = inliersCurr.begin(); it != inliersCurr.end(); it++)
+            minXCurr = minXCurr < it->x ? minXCurr : it->x;
 
-    // Calculate the time to collision
-    TTC = minXCurr * (1.0/frameRate) / (minXPrev - minXCurr);
-    if (TTC < 0)
+        // Calculate the time to collision
+
+        TTC = minXCurr * (1.0/frameRate) / (minXPrev - minXCurr);
+        if (TTC < 0)
+            TTC = NAN;
+    }
+    else
+    {
         TTC = NAN;
+    }
+    std::cout << "---------- TTC: " << TTC << " ----------" << std::endl;
 }
 
 
