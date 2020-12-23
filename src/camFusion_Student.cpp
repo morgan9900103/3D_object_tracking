@@ -79,13 +79,14 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 
         // plot Lidar points into top view image
         int top=1e8, left=1e8, bottom=0.0, right=0.0;
-        float xwmin=1e8, ywmin=1e8, ywmax=-1e8;
+        float xwmin=1e8, xwmax=-1e8, ywmin=1e8, ywmax=-1e8;
         for (auto it2 = it1->lidarPoints.begin(); it2 != it1->lidarPoints.end(); ++it2)
         {
             // world coordinates
             float xw = (*it2).x; // world position in m with x facing forward from sensor
             float yw = (*it2).y; // world position in m with y facing left from sensor
             xwmin = xwmin<xw ? xwmin : xw;
+            xwmax = xwmax>xw ? xwmax : xw;
             ywmin = ywmin<yw ? ywmin : yw;
             ywmax = ywmax>yw ? ywmax : yw;
 
@@ -112,6 +113,9 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
         putText(topviewImg, str1, cv::Point2f(left-250, bottom+50), cv::FONT_ITALIC, 2, currColor);
         sprintf(str2, "xmin=%2.2f m, yw=%2.2f m", xwmin, ywmax-ywmin);
         putText(topviewImg, str2, cv::Point2f(left-250, bottom+125), cv::FONT_ITALIC, 2, currColor);
+
+        // std::cout << "------------- xmin: " << xwmin << "  xmax: " << xwmax << " --------------" << std::endl;
+
     }
 
     // plot distance markers
@@ -122,6 +126,7 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
         int y = (-(i * lineSpacing) * imageSize.height / worldSize.height) + imageSize.height;
         cv::line(topviewImg, cv::Point(0, y), cv::Point(imageSize.width, y), cv::Scalar(255, 0, 0));
     }
+
 
     // display image
     string windowName = "3D Objects";
@@ -153,7 +158,50 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
 {
-    // ...
+    // Find the mean dist if all lidar points
+    double meanPrev = 0.0;
+    for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); it++)
+    {
+        meanPrev += it->x;
+    }
+    meanPrev /= lidarPointsPrev.size();
+
+    double meanCurr = 0.0;
+    for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); it++)
+    {
+        meanCurr += it->x;
+    }
+    meanCurr /= lidarPointsCurr.size();
+
+    // Base on mean value, reject the outliers
+    std::vector<LidarPoint> inliersPrev;
+    std::vector<LidarPoint> inliersCurr;
+    double distTol = 0.1;
+    for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); it++)
+    {
+        double dist = fabs(it->x - meanPrev);
+        if (dist <= distTol)
+            inliersPrev.push_back(*it);
+    }
+    for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); it++)
+    {
+        double dist = fabs(it->x - meanCurr);
+        if (dist <= distTol)
+            inliersCurr.push_back(*it);
+    }
+
+    // Find the min value for inliers
+    double minXPrev = 1e8, minXCurr = 1e8;
+    for (auto it = inliersPrev.begin(); it != inliersPrev.end(); it++)
+        minXPrev = minXPrev < it->x ? minXPrev : it->x;
+
+    for (auto it = inliersCurr.begin(); it != inliersCurr.end(); it++)
+        minXCurr = minXCurr < it->x ? minXCurr : it->x;
+
+    // Calculate the time to collision
+    TTC = minXCurr * (1.0/frameRate) / (minXPrev - minXCurr);
+    if (TTC < 0)
+        TTC = NAN;
 }
 
 
