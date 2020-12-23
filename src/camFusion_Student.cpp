@@ -181,7 +181,46 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint
 void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr,
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
 {
-    // ...
+    vector<double> distRatios;
+    for (auto it1 = kptMatches.begin(); it1 != kptMatches.end()-1; it1++)
+    {
+        // Get current keypoint and its matched partner in the prev. frame
+        cv::KeyPoint kpOuterCurr = kptsCurr.at(it1->trainIdx);
+        cv::KeyPoint kpOuterPrev = kptsPrev.at(it1->queryIdx);
+
+        for (auto it2 = kptMatches.begin()+1; it2 != kptMatches.end(); it2++)
+        {
+            double minDist = 100.0; // Min. required distance
+
+            // Get next keypoint and its matched partner in the prev. frame
+            cv::KeyPoint kpInnerCurr = kptsCurr.at(it2->trainIdx);
+            cv::KeyPoint kpInnerPrev = kptsPrev.at(it2->queryIdx);
+
+            // Compute distances and distance ratios
+            double disCurr = cv::norm(kpOuterCurr.pt - kpInnerCurr.pt);
+            double disPrev = cv::norm(kpOuterPrev.pt - kpInnerPrev.pt);
+
+            if (disPrev > std::numeric_limits<double>::epsilon() && disCurr >= minDist)
+            {   // Avoid division by zero
+
+                double distRatio = disCurr / disPrev;
+                distRatios.push_back(distRatio);
+            }
+        }
+    }
+
+    // Only continue if list of distance ratios is not empty
+    if (distRatios.size() == 0)
+    {
+        TTC = NAN;
+        return;
+    }
+
+    std::sort(distRatios.begin(), distRatios.end());
+    long medIndex = floor(distRatios.size() / 2.0);
+    double medDistRatio = distRatios.size() % 2 == 0 ? (distRatios[medIndex - 1] + distRatios[medIndex]) / 2.0 : distRatios[medIndex];
+
+    TTC = -(1.0/frameRate) / (1 - medDistRatio);
 }
 
 
@@ -240,7 +279,6 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     {
         TTC = NAN;
     }
-    std::cout << "---------- TTC: " << TTC << " ----------" << std::endl;
 }
 
 
