@@ -248,7 +248,18 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
 
 ## Task FP.5 Performance Evaluation 1
 
-
+Taking the mean value of x-distance and reject the outliers seem works pretty fine. I didn't find any unreasonable result.
 
 ## Task FP.6 Performance Evaluation 2
 
+**Camera TTC (s)**
+
+|Detector/Descriptor|BRISK|BRIEF|ORB|FREAK|AKAZE|SIFT|
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+|Shi-Tomasi|||||||
+|Harris|||||||
+|FAST|||||||
+|BRISK|||||||
+|ORB|||||||
+|AKAZE|||||||
+|SIFT|||||||
