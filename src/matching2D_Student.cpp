@@ -142,6 +142,8 @@ void detKeypointsHarris(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool
     int minResponse = 100;
     double k = 0.04;
 
+    double t = (double)cv::getTickCount();
+
     // Detect Harris corners and normalize output
     cv::Mat dist, dist_norm, dist_norm_scaled;
     dist = cv::Mat::zeros(img.size(), CV_32FC1);
@@ -183,6 +185,9 @@ void detKeypointsHarris(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, bool
             }
         }
     }
+    t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+    cout << "Harris detection with n=" << keypoints.size() << " keypoints in " << 1000 * t / 1.0 << " ms" << endl;
+
 
     if (bVis)
     {
@@ -199,11 +204,11 @@ void detKeypointsModern(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, std:
 {
     cv::Ptr<cv::FeatureDetector> detector;
 
+    double t = (double)cv::getTickCount();
+
     if (detectorType.compare("FAST") == 0)
     {
-        int threshold = 30;
-        bool nonmaxSuppression = true;
-        cv::FAST(img, keypoints, threshold, nonmaxSuppression, cv::FastFeatureDetector::TYPE_9_16);
+        detector = cv::FastFeatureDetector::create();
     }
     else if (detectorType.compare("BRISK") == 0)
     {
@@ -223,6 +228,10 @@ void detKeypointsModern(std::vector<cv::KeyPoint> &keypoints, cv::Mat &img, std:
     }
 
     detector->detect(img, keypoints);
+
+    t = ((double)cv::getTickCount() - t) / cv::getTickFrequency();
+    cout << detectorType << " detection with n=" << keypoints.size() << " keypoints in " << 1000 * t / 1.0 << " ms" << endl;
+
 
     if (bVis)
     {
