@@ -256,7 +256,7 @@ Taking the mean value of x-distance and reject the outliers seem works pretty fi
 
 |Detector/Descriptor|BRISK|BRIEF|ORB|FREAK|AKAZE|SIFT|
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-|Shi-Tomasi|26.13|14.68|15.76|52.39|x|39.19|
+|Shi-Tomasi|26.13|**14.68**|**15.76**|52.39|x|39.19|
 |Harris|**12.72**|**10.9**|**14.05**|44.93|x|24.36|
 |FAST|49.14|16.63|**13.08**|61.17|x|169.77|
 |BRISK|315|279.1|288.86|320.78|x|475.76|
@@ -265,6 +265,7 @@ Taking the mean value of x-distance and reject the outliers seem works pretty fi
 |SIFT|117.17|187.33|x|142.81|x|202.83|
 
 Lidar TTC: 12.56 s
+
 **Camera TTC (s)**
 
 |Detector/Descriptor|BRISK|BRIEF|ORB|FREAK|AKAZE|SIFT|
@@ -277,3 +278,9 @@ Lidar TTC: 12.56 s
 |AKAZE|13.81|17.28|14.85|15.69|17.09|15.92|
 |SIFT|13.57|16.56|x|13.17|x|15.34|
 
+According to the test result, Shi-Tomasi detector with BRIEF/ORB descriptor, Harris detector with BRISK/BRIEF/ORB descriptor, FAST detector with BRIEF/ORB descriptor, and ORB detector with BRISK/BRIEF descriptor will cost less run time than others. ORB detector with BRIEF descriptor is the fastest combination. Since the average TTC of all combination is 16.7s, and Lidar TTC is 12.56s, any reading that is close to these two number will be considered a good TTC result.
+
+Hence, my Top 3 choices will be:
+1. FAST + ORB
+2. Shi-Tomasi + BRIEF
+3. Shi-Tomasi + ORB
