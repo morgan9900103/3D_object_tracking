@@ -33,3 +33,222 @@ In this final project, you will implement the missing parts in the schematic. To
 2. Make a build directory in the top level project directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./3D_object_tracking`.
+
+## Task FP.1 Match 3D Objects
+
+Implement the method "matchBoundingBoxes", which takes both the previous and the current data frames as input and provides the IDs of the matched regions of interest. Here I use ```multimap<int, int> mmap``` to store the pairs of bounding Box ID. Then find the best match with the highest number of keypoints correspondences.
+
+```c++
+void matchBoundingBoxes(std::vector<cv::DMatch> &matches, std::map<int, int> &bbBestMatches, DataFrame &prevFrame, DataFrame &currFrame)
+{
+    multimap<int, int> mmap;
+    for (auto match: matches)
+    {
+        int prevBoxId = -1, currBoxId = -1;
+
+        for (auto bbox: prevFrame.boundingBoxes)
+        {
+            if (bbox.roi.contains(prevFrame.keypoints[match.queryIdx].pt))
+                prevBoxId = bbox.boxID;
+        }
+
+        for (auto bbox: currFrame.boundingBoxes)
+        {
+            if (bbox.roi.contains(currFrame.keypoints[match.trainIdx].pt))
+                currBoxId = bbox.boxID;
+        }
+
+        mmap.insert({currBoxId, prevBoxId});
+    }
+
+    int prevBoxSize = prevFrame.boundingBoxes.size();
+    for (int i = 0; i < prevBoxSize; i++)
+    {
+        auto mmapPair = mmap.equal_range(i);
+        vector<int> currBoxCount(prevBoxSize, 0);
+        for (auto pr = mmapPair.first; pr != mmapPair.second; pr++)
+        {
+            if (pr->second >= 0)
+                currBoxCount[pr->second]++;
+        }
+
+        int maxPosition = std::distance(currBoxCount.begin(), std::max_element(currBoxCount.begin(), currBoxCount.end()));
+        bbBestMatches.insert({maxPosition, i});
+    }
+}
+```
+
+## Task FP.2 Compute Lidar-based TTC
+
+Compute the time-to-collision in second for all matched 3D objects using only Lidar measurements from the matched bounding boxes between current and previous data frame. I calculate the mean value of x-distance and set a distance threshold at 0.1. Any point that is out of the threshold will not be considered for TTC calculation.
+
+```c++
+void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
+                     std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC)
+{
+    // Find the mean dist if all lidar points
+    double meanPrev = 0.0;
+    for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); it++)
+    {
+        meanPrev += it->x;
+    }
+    meanPrev /= lidarPointsPrev.size();
+
+    double meanCurr = 0.0;
+    for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); it++)
+    {
+        meanCurr += it->x;
+    }
+    meanCurr /= lidarPointsCurr.size();
+
+    // Base on mean value, reject the outliers
+    std::vector<LidarPoint> inliersPrev;
+    std::vector<LidarPoint> inliersCurr;
+    double distTol = 0.1;
+    for (auto it = lidarPointsPrev.begin(); it != lidarPointsPrev.end(); it++)
+    {
+        double dist = fabs(it->x - meanPrev);
+        if (dist <= distTol)
+            inliersPrev.push_back(*it);
+    }
+    for (auto it = lidarPointsCurr.begin(); it != lidarPointsCurr.end(); it++)
+    {
+        double dist = fabs(it->x - meanCurr);
+        if (dist <= distTol)
+            inliersCurr.push_back(*it);
+    }
+
+    if (inliersCurr.size() && inliersPrev.size())
+    {
+        // Find the min value for inliers
+        double minXPrev = 1e8, minXCurr = 1e8;
+        for (auto it = inliersPrev.begin(); it != inliersPrev.end(); it++)
+            minXPrev = minXPrev < it->x ? minXPrev : it->x;
+
+        for (auto it = inliersCurr.begin(); it != inliersCurr.end(); it++)
+            minXCurr = minXCurr < it->x ? minXCurr : it->x;
+
+        // Calculate the time to collision
+
+        TTC = minXCurr * (1.0/frameRate) / (minXPrev - minXCurr);
+        if (TTC < 0)
+            TTC = NAN;
+    }
+    else
+    {
+        TTC = NAN;
+    }
+}
+```
+
+## Task FP.3 Associate Keypoint Correspondences with Bounding Boxes
+
+Prepare the TTC computation based on camera measurements by associating keypoint correspondences to the bounding boxes which enclose them. All matches which satisfy this condition must be added to a vector in the respective bounding box. I calculate the mean and the standard deviation of the distribution of distance between match points. After that I remove the points that are too far away from mean.
+
+```c++
+void clusterKptMatchesWithROI(BoundingBox &boundingBox, std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr, std::vector<cv::DMatch> &kptMatches)
+{
+    float shrinkFactor = 0.1;
+    for (auto &match: kptMatches)
+    {
+        cv::Rect smallerBox;
+        smallerBox.x = boundingBox.roi.x + shrinkFactor * boundingBox.roi.width / 2.0;
+        smallerBox.y = boundingBox.roi.y + shrinkFactor * boundingBox.roi.height / 2.0;
+        smallerBox.width = boundingBox.roi.width * (1 - shrinkFactor);
+        smallerBox.height = boundingBox.roi.height * (1 - shrinkFactor);
+
+        if (boundingBox.roi.contains(kptsCurr[match.trainIdx].pt))
+        {
+            boundingBox.kptMatches.push_back(match);
+        }
+    }
+
+    // Remove outliers
+    double meanDist = 0.0;
+    std::vector<double> distances;
+    for (auto &match: boundingBox.kptMatches)
+    {
+        auto kptCurr = kptsCurr[match.trainIdx].pt;
+        auto kptPrev = kptsPrev[match.queryIdx].pt;
+        double dist = cv::norm(kptCurr - kptPrev);
+        meanDist += dist;
+        distances.push_back(dist);
+    }
+    meanDist /= boundingBox.kptMatches.size();
+
+    double sigma = 0.0;
+    for (int i = 0; i < distances.size(); i++)
+    {
+        sigma += pow(distances[i] - meanDist, 2);
+    }
+    sigma = sqrt(sigma / distances.size());
+
+    for (int i = 0; i < kptMatches.size(); i++) {
+    	if (abs(distances[i] - meanDist) < sigma) {
+    		boundingBox.kptMatches.push_back(kptMatches[i]);
+    	}
+    }
+}
+```
+
+## Task FP.4 Compute Camera-based TTC
+
+Compute the time-to-collision in second for all matched 3D objects using only keypoint correspondences from the matched bounding boxes between current and previous data frame. I compute the median of distance ratios to reduce the impact of outliers of keypoints.
+
+```c++
+void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr,
+                      std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg)
+{
+    // compute distance ratios between all matched keypoints
+    vector<double> distRatios; // stores the distance ratios for all keypoints between curr. and prev. frame
+    for (auto it1 = kptMatches.begin(); it1 != kptMatches.end() - 1; ++it1)
+    { // outer kpt. loop
+
+        // get current keypoint and its matched partner in the prev. frame
+        cv::KeyPoint kpOuterCurr = kptsCurr.at(it1->trainIdx);
+        cv::KeyPoint kpOuterPrev = kptsPrev.at(it1->queryIdx);
+
+        for (auto it2 = kptMatches.begin() + 1; it2 != kptMatches.end(); ++it2)
+        { // inner kpt.-loop
+
+            double minDist = 100.0; // min. required distance
+
+            // get next keypoint and its matched partner in the prev. frame
+            cv::KeyPoint kpInnerCurr = kptsCurr.at(it2->trainIdx);
+            cv::KeyPoint kpInnerPrev = kptsPrev.at(it2->queryIdx);
+
+            // compute distances and distance ratios
+            double distCurr = cv::norm(kpOuterCurr.pt - kpInnerCurr.pt);
+            double distPrev = cv::norm(kpOuterPrev.pt - kpInnerPrev.pt);
+
+            if (distPrev > std::numeric_limits<double>::epsilon() && distCurr >= minDist)
+            { // avoid division by zero
+
+                double distRatio = distCurr / distPrev;
+                distRatios.push_back(distRatio);
+            }
+        } // eof inner loop over all matched kpts
+    }     // eof outer loop over all matched kpts
+
+    // only continue if list of distance ratios is not empty
+    if (distRatios.size() == 0)
+    {
+        TTC = NAN;
+        return;
+    }
+
+    std::sort(distRatios.begin(), distRatios.end());
+    long medIndex = floor(distRatios.size() / 2.0);
+    double medDistRatio = distRatios.size() % 2 == 0 ? (distRatios[medIndex - 1] + distRatios[medIndex]) / 2.0 : distRatios[medIndex]; // compute median dist. ratio to remove outlier influence
+
+    double dT = 1 / frameRate;
+    TTC = -dT / (1 - medDistRatio);
+}
+```
+
+## Task FP.5 Performance Evaluation 1
+
+
+
+## Task FP.6 Performance Evaluation 2
+
