@@ -234,6 +234,7 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
 
     double dT = 1 / frameRate;
     TTC = -dT / (1 - medDistRatio);
+    std::cout << "Camera TTC: " << TTC << std::endl;
 }
 
 
@@ -292,6 +293,7 @@ void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
     {
         TTC = NAN;
     }
+    std::cout << "Lidar TTC: " << TTC << std::endl;
 }
 
 
