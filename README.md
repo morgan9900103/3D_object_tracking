@@ -252,14 +252,28 @@ Taking the mean value of x-distance and reject the outliers seem works pretty fi
 
 ## Task FP.6 Performance Evaluation 2
 
+**Total Time cost (s)**
+
+|Detector/Descriptor|BRISK|BRIEF|ORB|FREAK|AKAZE|SIFT|
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+|Shi-Tomasi|26.13|14.68|15.76|52.39|x|39.19|
+|Harris|**12.72**|**10.9**|**14.05**|44.93|x|24.36|
+|FAST|49.14|16.63|**13.08**|61.17|x|169.77|
+|BRISK|315|279.1|288.86|320.78|x|475.76|
+|ORB|**11.93**|**8.98**|21.2|41.67|x|115.2|
+|AKAZE|71.94|62.95|72.11|105.61|117.4|112.15|
+|SIFT|117.17|187.33|x|142.81|x|202.83|
+
+Lidar TTC: 12.56 s
 **Camera TTC (s)**
 
 |Detector/Descriptor|BRISK|BRIEF|ORB|FREAK|AKAZE|SIFT|
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
-|Shi-Tomasi|||||||
-|Harris|||||||
-|FAST|||||||
-|BRISK|||||||
-|ORB|||||||
-|AKAZE|||||||
-|SIFT|||||||
+|Shi-Tomasi|15.9|16.03|15.72|16.82|x|13.28|
+|Harris|8.69|24.2|24.2|22.99|x|16.84|
+|FAST|13.91|13.76|13.69|14.72|x|14.46|
+|BRISK|17.67|16.53|14.97|17.98|x|18.52|
+|ORB|20.55|19.61|16.78|-inf|x|25.86|
+|AKAZE|13.81|17.28|14.85|15.69|17.09|15.92|
+|SIFT|13.57|16.56|x|13.17|x|15.34|
+
